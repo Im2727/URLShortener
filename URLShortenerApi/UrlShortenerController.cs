@@ -7,8 +7,7 @@ using URLShortenerApi.Models;
 
 namespace URLShortenerApi.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
+    [Route("shorten")]
     public class UrlShortenerController : ControllerBase
     {
         private readonly UrlShortenerContext _db;
@@ -25,6 +24,17 @@ namespace URLShortenerApi.Controllers
             if (string.IsNullOrWhiteSpace(request.Url))
                 return BadRequest("URL is required.");
 
+            // If a custom code is provided, check for conflicts
+            if (!string.IsNullOrWhiteSpace(request.CustomCode))
+            {
+                if (_db.UrlMappings.Any(x => x.Code == request.CustomCode))
+                    return Conflict("Custom short code is already in use.");
+                var mapping = new UrlMapping { Code = request.CustomCode, OriginalUrl = request.Url };
+                _db.UrlMappings.Add(mapping);
+                _db.SaveChanges();
+                return Ok(new { shortUrl = baseUrl + request.CustomCode });
+            }
+
             var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == request.Url);
             if (existing != null)
                 return Ok(new { shortUrl = baseUrl + existing.Code });
@@ -35,43 +45,97 @@ namespace URLShortenerApi.Controllers
                 code = GenerateCode(request.Url);
             } while (_db.UrlMappings.Any(x => x.Code == code));
 
-            var mapping = new UrlMapping { Code = code, OriginalUrl = request.Url };
-            _db.UrlMappings.Add(mapping);
+            var autoMapping = new UrlMapping { Code = code, OriginalUrl = request.Url };
+            _db.UrlMappings.Add(autoMapping);
             _db.SaveChanges();
             return Ok(new { shortUrl = baseUrl + code });
         }
 
-        [HttpGet("shorten/{*url}")]
-        public IActionResult ShortenUrlGet(string url)
+        // GET /api/urlshortener/shorten?url={url} for random code
+        [HttpGet("shorten")]
+        public IActionResult ShortenUrlGet([FromQuery] string url)
         {
             if (string.IsNullOrWhiteSpace(url))
                 return BadRequest("URL is required.");
 
-            var decodedUrl = System.Net.WebUtility.UrlDecode(url);
-            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == decodedUrl);
+            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == url);
             if (existing != null)
                 return Ok(new { shortUrl = baseUrl + existing.Code });
 
             string code;
             do
             {
-                code = GenerateCode(decodedUrl);
+                code = GenerateCode(url);
             } while (_db.UrlMappings.Any(x => x.Code == code));
 
-            var mapping = new UrlMapping { Code = code, OriginalUrl = decodedUrl };
+            var mapping = new UrlMapping { Code = code, OriginalUrl = url };
             _db.UrlMappings.Add(mapping);
             _db.SaveChanges();
             return Ok(new { shortUrl = baseUrl + code });
         }
 
-        [HttpGet("{code}")]
-        [Route("/{code}")]
-        public IActionResult RedirectToOriginal(string code)
+        // GET /api/urlshortener/shorten/{code}?url={url} for custom code
+        [HttpGet("shorten/{code}")]
+        public IActionResult ShortenUrlGetCustom([FromRoute] string code, [FromQuery] string url)
         {
-            var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
-            if (mapping != null)
-                return Redirect(mapping.OriginalUrl);
-            return NotFound();
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(code))
+                return BadRequest("Both code and url are required.");
+
+            if (_db.UrlMappings.Any(x => x.Code == code))
+                return Conflict("Custom short code is already in use.");
+
+            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == url);
+            if (existing != null)
+                return Ok(new { shortUrl = baseUrl + existing.Code });
+
+            var mapping = new UrlMapping { Code = code, OriginalUrl = url };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
+            return Ok(new { shortUrl = baseUrl + code });
+        }
+
+        // GET /shorten/custom/{customCode}/{*url} for custom code
+        [HttpGet("custom/{customCode}/{*url}")]
+        public IActionResult ShortenUrlCustomRoute(string customCode, string url)
+        {
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(customCode))
+                return BadRequest("Both custom code and url are required.");
+
+            url = System.Net.WebUtility.UrlDecode(url);
+
+            // Check if the custom code is already in use
+            if (_db.UrlMappings.Any(x => x.Code == customCode))
+                return Conflict("Custom short code is already in use.");
+
+            var mapping = new UrlMapping { Code = customCode, OriginalUrl = url };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
+            return Ok(new { shortUrl = baseUrl + customCode });
+        }
+
+        // GET /shorten/{*url} for random code
+        [HttpGet("{*url}")]
+        public IActionResult ShortenUrlRoute(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+                return BadRequest("URL is required.");
+
+            url = System.Net.WebUtility.UrlDecode(url);
+
+            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == url);
+            if (existing != null)
+                return Ok(new { shortUrl = baseUrl + existing.Code });
+
+            string code;
+            do
+            {
+                code = GenerateCode(url);
+            } while (_db.UrlMappings.Any(x => x.Code == code));
+
+            var mapping = new UrlMapping { Code = code, OriginalUrl = url };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
+            return Ok(new { shortUrl = baseUrl + code });
         }
 
         private static string GenerateCode(string url)
@@ -86,5 +150,6 @@ namespace URLShortenerApi.Controllers
     public class UrlRequest
     {
         public string Url { get; set; }
+        public string? CustomCode { get; set; } // Optional custom short code
     }
 }

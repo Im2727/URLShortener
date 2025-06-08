@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using URLShortenerApi.Models;
 
 namespace URLShortenerApi.Controllers
 {
@@ -9,10 +11,13 @@ namespace URLShortenerApi.Controllers
     [Route("api/[controller]")]
     public class UrlShortenerController : ControllerBase
     {
-        // In-memory store for URL mappings
-        private static readonly ConcurrentDictionary<string, string> urlMap = new();
-        private static readonly ConcurrentDictionary<string, string> reverseMap = new();
+        private readonly UrlShortenerContext _db;
         private static readonly string baseUrl = "http://localhost:5016/"; // Root URL for short links
+
+        public UrlShortenerController(UrlShortenerContext db)
+        {
+            _db = db;
+        }
 
         [HttpPost("shorten")]
         public IActionResult ShortenUrl([FromBody] UrlRequest request)
@@ -20,20 +25,19 @@ namespace URLShortenerApi.Controllers
             if (string.IsNullOrWhiteSpace(request.Url))
                 return BadRequest("URL is required.");
 
-            // Prevent repetitions
-            if (reverseMap.TryGetValue(request.Url, out var existingCode))
-            {
-                return Ok(new { shortUrl = baseUrl + existingCode });
-            }
+            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == request.Url);
+            if (existing != null)
+                return Ok(new { shortUrl = baseUrl + existing.Code });
 
             string code;
             do
             {
                 code = GenerateCode(request.Url);
-            } while (urlMap.ContainsKey(code));
+            } while (_db.UrlMappings.Any(x => x.Code == code));
 
-            urlMap[code] = request.Url;
-            reverseMap[request.Url] = code;
+            var mapping = new UrlMapping { Code = code, OriginalUrl = request.Url };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
             return Ok(new { shortUrl = baseUrl + code });
         }
 
@@ -44,21 +48,19 @@ namespace URLShortenerApi.Controllers
                 return BadRequest("URL is required.");
 
             var decodedUrl = System.Net.WebUtility.UrlDecode(url);
-
-            // Prevent repetitions
-            if (reverseMap.TryGetValue(decodedUrl, out var existingCode))
-            {
-                return Ok(new { shortUrl = baseUrl + existingCode });
-            }
+            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == decodedUrl);
+            if (existing != null)
+                return Ok(new { shortUrl = baseUrl + existing.Code });
 
             string code;
             do
             {
                 code = GenerateCode(decodedUrl);
-            } while (urlMap.ContainsKey(code));
+            } while (_db.UrlMappings.Any(x => x.Code == code));
 
-            urlMap[code] = decodedUrl;
-            reverseMap[decodedUrl] = code;
+            var mapping = new UrlMapping { Code = code, OriginalUrl = decodedUrl };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
             return Ok(new { shortUrl = baseUrl + code });
         }
 
@@ -66,10 +68,9 @@ namespace URLShortenerApi.Controllers
         [Route("/{code}")]
         public IActionResult RedirectToOriginal(string code)
         {
-            if (urlMap.TryGetValue(code, out var originalUrl))
-            {
-                return Redirect(originalUrl);
-            }
+            var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
+            if (mapping != null)
+                return Redirect(mapping.OriginalUrl);
             return NotFound();
         }
 

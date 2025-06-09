@@ -17,7 +17,11 @@ namespace URLShortenerApi.Controllers
         {
             var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
             if (mapping != null)
+            {
+                mapping.RedirectCount++;
+                _db.SaveChanges();
                 return Redirect(mapping.OriginalUrl);
+            }
             return NotFound();
         }
     }

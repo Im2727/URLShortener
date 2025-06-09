@@ -138,6 +138,16 @@ namespace URLShortenerApi.Controllers
             return Ok(new { shortUrl = baseUrl + code });
         }
 
+        // GET /shorten/analytics/{code} - get redirect count for a short code
+        [HttpGet("analytics/{code}")]
+        public IActionResult GetAnalytics(string code)
+        {
+            var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
+            if (mapping == null)
+                return NotFound("Short code not found.");
+            return Ok(new { code = mapping.Code, redirectCount = mapping.RedirectCount });
+        }
+
         private static string GenerateCode(string url)
         {
             // Use SHA256 hash and take first 6 chars for uniqueness

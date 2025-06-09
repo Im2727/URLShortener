@@ -18,6 +18,10 @@ namespace URLShortenerApi.Controllers
             var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
             if (mapping != null)
             {
+                if (mapping.ExpiresAt.HasValue && mapping.ExpiresAt.Value < DateTime.UtcNow)
+                {
+                    return Content($"This short link has expired on {mapping.ExpiresAt.Value:u}.", "text/plain");
+                }
                 mapping.RedirectCount++;
                 _db.SaveChanges();
                 return Redirect(mapping.OriginalUrl);

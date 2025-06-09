@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL Shortener</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px; }
+        h1 { text-align: center; color: #2d3a4b; }
+        label { display: block; margin-top: 16px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; margin-top: 4px; border-radius: 4px; border: 1px solid #ccc; }
+        button { margin-top: 20px; width: 100%; padding: 12px; background: #2d3a4b; color: #fff; border: none; border-radius: 4px; font-size: 1.1em; cursor: pointer; }
+        button:hover { background: #1a2230; }
+        .result, .analytics, .lookup { margin-top: 24px; background: #f0f4f8; padding: 16px; border-radius: 6px; }
+        .expired { color: #b00; font-weight: bold; }
+        .success { color: #080; font-weight: bold; }
+        .short-url { font-size: 1.1em; }
+        .section-title { margin-top: 32px; color: #2d3a4b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>URL Shortener</h1>
+        <form id="shortenForm">
+            <label for="url">URL to shorten</label>
+            <input type="url" id="url" name="url" required placeholder="https://example.com">
+
+            <label for="customCode">Custom short code (optional)</label>
+            <input type="text" id="customCode" name="customCode" placeholder="e.g. mycode">
+
+            <label for="expiresIn">Expiration (optional)</label>
+            <select id="expiresIn" name="expiresIn">
+                <option value="">30 days (default)</option>
+                <option value="1h">1 hour</option>
+                <option value="1d">1 day</option>
+                <option value="7d">7 days</option>
+                <option value="custom">Custom date/time</option>
+            </select>
+            <input type="datetime-local" id="customExpires" style="display:none; margin-top:8px;" />
+
+            <button type="submit">Shorten URL</button>
+        </form>
+        <div class="result" id="result" style="display:none;"></div>
+
+        <h2 class="section-title">Analytics</h2>
+        <form id="analyticsForm">
+            <label for="analyticsCode">Short code</label>
+            <input type="text" id="analyticsCode" name="analyticsCode" placeholder="e.g. mycode or 1a2b3c" required>
+            <button type="submit">Get Analytics</button>
+        </form>
+        <div class="analytics" id="analyticsResult" style="display:none;"></div>
+
+        <h2 class="section-title">Original URL Lookup</h2>
+        <form id="lookupForm">
+            <label for="lookupCode">Short code</label>
+            <input type="text" id="lookupCode" name="lookupCode" placeholder="e.g. mycode or 1a2b3c" required>
+            <button type="submit">Get Original URL</button>
+        </form>
+        <div class="lookup" id="lookupResult" style="display:none;"></div>
+    </div>
+    <script>
+        const apiBase = '/shorten';
+        // Shorten URL
+        document.getElementById('shortenForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const url = document.getElementById('url').value;
+            const customCode = document.getElementById('customCode').value;
+            let expiresAt = '';
+            const expiresIn = document.getElementById('expiresIn').value;
+            if (expiresIn === 'custom') {
+                expiresAt = document.getElementById('customExpires').value;
+            } else if (expiresIn) {
+                const now = new Date();
+                if (expiresIn.endsWith('h')) now.setHours(now.getHours() + parseInt(expiresIn));
+                if (expiresIn.endsWith('d')) now.setDate(now.getDate() + parseInt(expiresIn));
+                expiresAt = now.toISOString();
+            }
+            const payload = { url };
+            if (customCode) payload.customCode = customCode;
+            if (expiresAt) payload.expiresAt = expiresAt;
+            const res = await fetch(apiBase + '/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            const resultDiv = document.getElementById('result');
+            if (res.ok) {
+                resultDiv.innerHTML = `<div class='success'>Short URL: <a class='short-url' href='${data.shortUrl}' target='_blank'>${data.shortUrl}</a><br>Expires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Never'}</div>`;
+            } else {
+                resultDiv.innerHTML = `<div class='expired'>${data || 'Error shortening URL.'}</div>`;
+            }
+            resultDiv.style.display = 'block';
+        };
+        // Expiration custom input
+        document.getElementById('expiresIn').onchange = function() {
+            document.getElementById('customExpires').style.display = this.value === 'custom' ? 'block' : 'none';
+        };
+        // Analytics
+        document.getElementById('analyticsForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('analyticsCode').value;
+            const res = await fetch(`${apiBase}/analytics/${code}`);
+            const data = await res.json();
+            const analyticsDiv = document.getElementById('analyticsResult');
+            if (res.ok) {
+                analyticsDiv.innerHTML = `<div>Short code: <b>${data.code}</b><br>Redirect count: <b>${data.redirectCount}</b></div>`;
+            } else {
+                analyticsDiv.innerHTML = `<div class='expired'>${data || 'Not found.'}</div>`;
+            }
+            analyticsDiv.style.display = 'block';
+        };
+        // Original URL Lookup (robust error handling)
+        document.getElementById('lookupForm').onsubmit = async function(e) {
+            e.preventDefault();
+            const code = document.getElementById('lookupCode').value;
+            const res = await fetch(`${apiBase}/original/${code}`);
+            let lookupDiv = document.getElementById('lookupResult');
+            let data;
+            try {
+                data = await res.json();
+            } catch {
+                data = null;
+            }
+            if (res.ok && data && data.code && data.originalUrl) {
+                lookupDiv.innerHTML = `<div>Short code: <b>${data.code}</b><br>Original URL: <a href='${data.originalUrl}' target='_blank'>${data.originalUrl}</a><br>Expires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Never'}</div>`;
+            } else {
+                lookupDiv.innerHTML = `<div class='expired'>Short code not found or invalid response.</div>`;
+            }
+            lookupDiv.style.display = 'block';
+        };
+    </script>
+</body>
+</html>

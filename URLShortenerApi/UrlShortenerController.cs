@@ -152,6 +152,16 @@ namespace URLShortenerApi.Controllers
             return Ok(new { code = mapping.Code, redirectCount = mapping.RedirectCount });
         }
 
+        // GET /shorten/original/{code} - get the original URL for a short code
+        [HttpGet("original/{code}")]
+        public IActionResult GetOriginalUrl(string code)
+        {
+            var mapping = _db.UrlMappings.FirstOrDefault(x => x.Code == code);
+            if (mapping == null)
+                return NotFound("Short code not found.");
+            return Ok(new { code = mapping.Code, originalUrl = mapping.OriginalUrl, expiresAt = mapping.ExpiresAt });
+        }
+
         private static string GenerateCode(string url)
         {
             // Use SHA256 hash and take first 6 chars for uniqueness

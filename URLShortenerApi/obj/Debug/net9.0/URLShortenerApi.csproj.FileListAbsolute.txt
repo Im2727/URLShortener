@@ -99,4 +99,5 @@ C:\Users\27\Downloads\URLShortener\URLShortenerApi\bin\Debug\net9.0\zh-Hant\Micr
 C:\Users\27\Downloads\URLShortener\URLShortenerApi\bin\Debug\net9.0\MySqlConnector.dll
 C:\Users\27\Downloads\URLShortener\URLShortenerApi\bin\Debug\net9.0\Pomelo.EntityFrameworkCore.MySql.dll
 C:\Users\27\Downloads\URLShortener\URLShortenerApi\bin\Debug\net9.0\URLShortenerApi.staticwebassets.runtime.json
-C:\Users\27\Downloads\URLShortener\URLShortenerApi\obj\Debug\net9.0\compressed\mv16z9cad4-wubvzh8hp2.gz
+C:\Users\27\Downloads\URLShortener\URLShortenerApi\obj\Debug\net9.0\URLShortenerApi.sourcelink.json
+C:\Users\27\Downloads\URLShortener\URLShortenerApi\obj\Debug\net9.0\compressed\mv16z9cad4-64u67z4zfj.gz

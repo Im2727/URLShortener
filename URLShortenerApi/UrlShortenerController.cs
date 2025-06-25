@@ -11,14 +11,14 @@ namespace URLShortenerApi.Controllers
     public class UrlShortenerController : ControllerBase
     {
         private readonly UrlShortenerContext _db;
-        private static readonly string baseUrl = "http://localhost:5016/"; // Root URL for short links
+        private static readonly string baseUrl = "http://localhost:27/"; // Root URL for short links
 
         public UrlShortenerController(UrlShortenerContext db)
         {
             _db = db;
         }
 
-        [HttpPost("shorten")]
+        [HttpPost("")]
         public IActionResult ShortenUrl([FromBody] UrlRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Url))
@@ -53,8 +53,8 @@ namespace URLShortenerApi.Controllers
             return Ok(new { shortUrl = baseUrl + code, expiresAt });
         }
 
-        // GET /api/urlshortener/shorten?url={url} for random code
-        [HttpGet("shorten")]
+        // GET /shorten?url={url} for random code
+        [HttpGet("")]
         public IActionResult ShortenUrlGet([FromQuery] string url)
         {
             if (string.IsNullOrWhiteSpace(url))
@@ -76,8 +76,8 @@ namespace URLShortenerApi.Controllers
             return Ok(new { shortUrl = baseUrl + code });
         }
 
-        // GET /api/urlshortener/shorten/{code}?url={url} for custom code
-        [HttpGet("shorten/{code}")]
+        // GET /shorten/custom/{code}?url={url} for custom code
+        [HttpGet("custom/{code}")]
         public IActionResult ShortenUrlGetCustom([FromRoute] string code, [FromQuery] string url)
         {
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(code))
@@ -116,32 +116,6 @@ namespace URLShortenerApi.Controllers
             return Ok(new { shortUrl = baseUrl + customCode, expiresAt = exp });
         }
 
-        // GET /shorten/{*url} for random code
-        [HttpGet("{*url}")]
-        public IActionResult ShortenUrlRoute(string url, [FromQuery] DateTime? expiresAt)
-        {
-            if (string.IsNullOrWhiteSpace(url))
-                return BadRequest("URL is required.");
-
-            url = System.Net.WebUtility.UrlDecode(url);
-            DateTime exp = expiresAt ?? DateTime.UtcNow.AddDays(30);
-
-            var existing = _db.UrlMappings.FirstOrDefault(x => x.OriginalUrl == url);
-            if (existing != null)
-                return Ok(new { shortUrl = baseUrl + existing.Code, expiresAt = existing.ExpiresAt });
-
-            string code;
-            do
-            {
-                code = GenerateCode(url);
-            } while (_db.UrlMappings.Any(x => x.Code == code));
-
-            var mapping = new UrlMapping { Code = code, OriginalUrl = url, ExpiresAt = exp };
-            _db.UrlMappings.Add(mapping);
-            _db.SaveChanges();
-            return Ok(new { shortUrl = baseUrl + code, expiresAt = exp });
-        }
-
         // GET /shorten/analytics/{code} - get redirect count for a short code
         [HttpGet("analytics/{code}")]
         public IActionResult GetAnalytics(string code)
@@ -160,6 +134,23 @@ namespace URLShortenerApi.Controllers
             if (mapping == null)
                 return NotFound("Short code not found.");
             return Ok(new { code = mapping.Code, originalUrl = mapping.OriginalUrl, expiresAt = mapping.ExpiresAt });
+        }
+
+        [HttpPost("custom")]
+        public IActionResult ShortenUrlCustom([FromBody] UrlRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Url) || string.IsNullOrWhiteSpace(request.CustomCode))
+                return BadRequest("Both url and customCode are required.");
+
+            DateTime expiresAt = request.ExpiresAt ?? DateTime.UtcNow.AddDays(30);
+
+            if (_db.UrlMappings.Any(x => x.Code == request.CustomCode))
+                return Conflict("Custom short code is already in use.");
+
+            var mapping = new UrlMapping { Code = request.CustomCode, OriginalUrl = request.Url, ExpiresAt = expiresAt };
+            _db.UrlMappings.Add(mapping);
+            _db.SaveChanges();
+            return Ok(new { shortUrl = baseUrl + request.CustomCode, expiresAt });
         }
 
         private static string GenerateCode(string url)

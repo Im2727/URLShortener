@@ -11,7 +11,7 @@ namespace URLShortenerApi.Controllers
     public class UrlShortenerController : ControllerBase
     {
         private readonly UrlShortenerContext _db;
-        private static readonly string baseUrl = "http://localhost:27/"; // Root URL for short links
+        private static readonly string baseUrl = "http://localhost:27/"; // Root URL
 
         public UrlShortenerController(UrlShortenerContext db)
         {

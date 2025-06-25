@@ -28,7 +28,7 @@ cd URLShortenerApi
 
 ### 2. Configure the Database
 
-#### MySQL (Recommended for Production)
+#### MySQL
 1. Install MySQL Server and ensure it is running.
 2. Create a database (e.g., `urlshortener`):
    ```sh
@@ -39,14 +39,6 @@ cd URLShortenerApi
    ```json
    "ConnectionStrings": {
      "DefaultConnection": "server=localhost;port=3306;database=urlshortener;user=root;password=YOUR_PASSWORD;"
-   }
-   ```
-
-#### SQLite (For Local Testing)
-- The project is pre-configured to use SQLite if you set the connection string accordingly in `appsettings.json`:
-   ```json
-   "ConnectionStrings": {
-     "DefaultConnection": "Data Source=urlshortener.db"
    }
    ```
 
@@ -68,29 +60,30 @@ dotnet tool install --global dotnet-ef
 ```sh
 dotnet run
 ```
-The API and UI will be available at [http://localhost:5016](http://localhost:5016).
+The API and UI will be available at [http://localhost:27](http://localhost:27).
 
 ---
 
 ## Usage
 
 ### Web UI
-- Open [http://localhost:5016](http://localhost:5016) in your browser.
+- Open [http://localhost:27] in your browser.
 - Use the form to shorten URLs, view analytics, and perform reverse lookups.
 
 ### API Endpoints
-- `POST /shorten/shorten` — Shorten a URL (optionally with custom code and expiration)
-- `GET /shorten/shorten?url={url}` — Shorten a URL (random code)
-- `GET /shorten/shorten/{code}?url={url}` — Shorten with custom code
-- `GET /shorten/custom/{customCode}/{*url}` — Shorten with custom code (route style)
-- `GET /shorten/{*url}` — Shorten with random code (route style)
+- `POST /shorten` — Shorten a URL (random code or with expiration)
+- `POST /shorten/custom` — Shorten a URL with a custom code (and optional expiration)
+- `GET /shorten?url={url}` — Shorten a URL (random code)
+- `GET /shorten/custom/{code}?url={url}` — Shorten with custom code (query style, recommended for API use)
 - `GET /shorten/analytics/{code}` — Get redirect count
 - `GET /shorten/original/{code}` — Get original URL and expiration
 - `GET /{code}` — Redirect to original URL (increments analytics)
 
+> **Note:** For most API clients and the web UI, use `POST /shorten` (random) or `POST /shorten/custom` (custom code). The GET endpoints are for legacy or direct browser use.
+
 ### Example Request (cURL)
 ```sh
-curl -X POST http://localhost:5016/shorten/shorten -H "Content-Type: application/json" -d '{"url": "https://example.com"}'
+curl -X POST http://localhost:27/shorten -H "Content-Type: application/json" -d '{"url": "https://example.com"}'
 ```
 
 ---
@@ -112,3 +105,6 @@ curl -X POST http://localhost:5016/shorten/shorten -H "Content-Type: application
 - If ports conflict, update `launchSettings.json` or `Program.cs`.
 
 ---
+
+## License
+MIT License. See [LICENSE](LICENSE) if present.

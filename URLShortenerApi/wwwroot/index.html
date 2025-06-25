@@ -77,19 +77,46 @@
                 expiresAt = now.toISOString();
             }
             const payload = { url };
-            if (customCode) payload.customCode = customCode;
             if (expiresAt) payload.expiresAt = expiresAt;
-            const res = await fetch(apiBase + '/shorten', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            const resultDiv = document.getElementById('result');
-            if (res.ok) {
-                resultDiv.innerHTML = `<div class='success'>Short URL: <a class='short-url' href='${data.shortUrl}' target='_blank'>${data.shortUrl}</a><br>Expires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Never'}</div>`;
+            let res, data;
+            if (customCode) {
+                payload.customCode = customCode;
+                res = await fetch(apiBase + '/custom', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
             } else {
-                resultDiv.innerHTML = `<div class='expired'>${data || 'Error shortening URL.'}</div>`;
+                res = await fetch(apiBase, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+            try {
+                data = await res.json();
+            } catch {
+                data = null;
+            }
+            const resultDiv = document.getElementById('result');
+            let msg = '';
+            if (res.ok && data && data.shortUrl) {
+                // Display expiration in user's local time zone
+                let expiresDisplay = 'Never';
+                if (data.expiresAt) {
+                    const dt = new Date(data.expiresAt);
+                    expiresDisplay = dt.toLocaleString();
+                }
+                resultDiv.innerHTML = `<div class='success'>Short URL: <a class='short-url' href='${data.shortUrl}' target='_blank'>${data.shortUrl}</a><br>Expires: ${expiresDisplay}</div>`;
+            } else {
+                if (res.status === 409) {
+                    msg = 'That custom short code is already in use. Please choose another.';
+                } else if (res.status === 405) {
+                    msg = 'Custom short code is not supported by this endpoint.';
+                } else {
+                    msg = (data && data.message) ? data.message : (data || 'Error shortening URL.');
+                }
+                resultDiv.innerHTML = `<div class='expired'>${msg}</div>`;
             }
             resultDiv.style.display = 'block';
         };
@@ -124,7 +151,13 @@
                 data = null;
             }
             if (res.ok && data && data.code && data.originalUrl) {
-                lookupDiv.innerHTML = `<div>Short code: <b>${data.code}</b><br>Original URL: <a href='${data.originalUrl}' target='_blank'>${data.originalUrl}</a><br>Expires: ${data.expiresAt ? new Date(data.expiresAt).toLocaleString() : 'Never'}</div>`;
+                let expiresDisplay = 'Never';
+                if (data.expiresAt) {
+                    // Parse as UTC and display in local time
+                    const dt = new Date(data.expiresAt + (data.expiresAt.endsWith('Z') ? '' : 'Z'));
+                    expiresDisplay = dt.toLocaleString();
+                }
+                lookupDiv.innerHTML = `<div>Short code: <b>${data.code}</b><br>Original URL: <a href='${data.originalUrl}' target='_blank'>${data.originalUrl}</a><br>Expires: ${expiresDisplay}</div>`;
             } else {
                 lookupDiv.innerHTML = `<div class='expired'>Short code not found or invalid response.</div>`;
             }
